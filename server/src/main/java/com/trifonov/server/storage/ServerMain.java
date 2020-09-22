@@ -1,8 +1,13 @@
 package com.trifonov.server.storage;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.ServerSocket;
@@ -13,90 +18,65 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 
-import com.trifonov.common.storage.StorageTemplate;
 import com.trifonov.common.storage.TempFileMessage;
+import com.trifonov.common.storage.StorageTemplate;
 
 public class ServerMain {
 
-	public static void main(String[] args) throws InterruptedException {
+	public static void main(String[] args)  {
 
-		byteServerReal();
+		//serializedServer();
+		byteServerReal();	
 	}
 	public static void serializedServer() {
+		
 		try (ServerSocket serverSocket = new ServerSocket(8081)) {
 			System.out.println("server is running...");
 
-			System.out.println("client is access...");
 			try (Socket socket = serverSocket.accept();
 				ObjectInputStream ois = new ObjectInputStream(socket.getInputStream())) {
+				TempFileMessage tfm = (TempFileMessage) ois.readObject();
 				
-				TempFileMessage st = (TempFileMessage) ois.readObject();
-				System.out.println(st);
-				for(byte b:st.getBytes()) {
+				for(byte b:tfm.getBytes()) {				
 					System.out.print((char)b);
+				}				
+				String name=tfm.getName();		
+				try (OutputStream os = new BufferedOutputStream(new FileOutputStream(name))) {	
+					for(byte b:tfm.getBytes()) {
+						os.write(b);
+					}	
 				}	
 			}
-
 		} catch (IOException | ClassNotFoundException e) {
-			System.out.println("server is not access...");
 			e.printStackTrace();
 		}
 	}
-	public static void byteServerReal() throws InterruptedException {
+	
+	public static void byteServerReal()  {
 		
-		
-		byte[]bytes=new byte[1024];
-		
-		try(ServerSocket serverSocket=new ServerSocket(8081)){
+		byte[]bytes=new byte[1024];	
+		try (ServerSocket sc = new ServerSocket(8081)) {
 			
 			System.out.println("server is running....");
 			
-			try(Socket socket=serverSocket.accept();
-				BufferedInputStream bis=new BufferedInputStream(socket.getInputStream())) {
+			try (Socket socket = sc.accept();
+					DataInputStream dis = new DataInputStream(new BufferedInputStream(socket.getInputStream()))) {	
+				byte signalByte=dis.readByte();
+				int fileNameLength = dis.readInt();
+				byte[] fileNameBytes = new byte[fileNameLength];
+				dis.read(fileNameBytes);	
+				String filename = new String(fileNameBytes);
 				
-				System.out.println("reading is process...");
+				long fileSize = dis.readLong();
 				
-				bis.read(bytes, 0, 9);
-				int nameSize=new BigInteger(toBytes(bytes,1,5)).intValue();
-				int fileSize=new BigInteger(toBytes(bytes,5,9)).intValue();
-				System.out.println("command is "+bytes[0]);
-				
-				byte[]bytesNew=new byte[nameSize];
-				
-				
-				bis.read(bytesNew,0,nameSize);
-				for(byte b:bytesNew) {
-					System.out.print((char)b);
-				}
-				System.out.println();
-				bytesNew=new byte[fileSize];
-				bis.read(bytesNew,0,fileSize);
-				for(byte b:bytesNew) {
-					System.out.print((char)b);
-				}
-				
-				
-				
-				
-					
-					
-				}
-			}	
-		 catch (IOException e) {
-			
+				try (OutputStream out = new BufferedOutputStream(new FileOutputStream(filename))) {
+					for (long i = 0; i < fileSize; i++) {
+						out.write(dis.read());
+					}
+				}	
+			}
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
 	}
-	public static byte[]toBytes(byte[]b,int start,int end){
-		byte[]out=new byte[end-start];
-		int index=0;
-		for(int i=start;i<end;i++) {
-			
-			out[index++]=b[i];
-		}
-		return out;
-		
-	}
-
 }
